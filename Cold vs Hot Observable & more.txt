@@ -1,0 +1,66 @@
+You want a HOT observable when you don’t want to create your producer over and over again.
+
+What’s a “Producer”?
+A producer is the source of values for your observable. It could be a web socket, it could be DOM events, it could be an iterator, 
+or something looping over an array. Basically, it’s anything you’re using to get values and pass them to "observer.next(value)".
+
+####################################################################################################################################
+
+// COLD
+var cold = new Observable((observer) => {
+  var producer = new Producer();
+  // have observer listen to producer here
+});
+
+// COLD - EXAMPLE
+
+const source = new Observable((observer) => {
+  const socket = new WebSocket('ws://someurl');
+  socket.addEventListener('message', (e) => observer.next(e));
+  return () => socket.close();
+});
+
+So anything that subscribes to `source` above, will get its own WebSocket instance, and when it unsubscribes, it will `close()` that socket. 
+This means that our source is really only ever unicast, because the producer can only send to one observer
+
+####################################################################################################################################
+
+// HOT
+var producer = new Producer();
+var hot = new Observable((observer) => {
+  // have observer listen to producer here
+});
+
+// HOT - EXAMPLE
+
+const socket = new WebSocket('ws://someurl');
+const source = new Observable((observer) => {
+  socket.addEventListener('message', (e) => observer.next(e));
+});
+
+Now anything that subscribes to `source` will share the same WebSocket instance. It will effectively multicast to all subscribers now. 
+But we have a little problem: We’re no longer carrying the logic to teardown the socket with our observable. That means that things like 
+errors and completions, as well as unsubscribe, will no longer close the socket for us. So what we really want is to make our “cold” 
+observable “hot”.
+
+####################################################################################################################################
+
+Creating an observable (something we can subscirbe to):
+
+import { Observable } from 'rxjs';
+
+const hello = Observable.create(function(observer) {	
+
+	// This function is named a "subscriber function", it is called when
+	// client calls "subscribe", the observer wraps the parameter the client passed
+	// to "subscirbe" (in this case a function printing to the console)
+	
+	// An observer is the something we use it to emit values
+	// our observable uses an observer to emit values to its subscribers
+	
+	observer.next('Hello'); // calls -> val => console.log(val)
+	observer.next('World'); // calls -> val => console.log(val)
+	observer.complete();
+});
+
+const subscribe = hello.subscribe(val => console.log(val));		//output: 'Hello'...'World'
